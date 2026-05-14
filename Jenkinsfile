@@ -3,14 +3,12 @@ pipeline {
 
     tools {
         maven 'Maven-3.9'
-        jdk   'JDK-17'
+        jdk 'JDK-17'
     }
 
     environment {
-        // ── Update these 3 values only ──
-        NEXUS_IP   = '44.204.255.105'
-        DEPLOY_IP  = '3.91.3.65'
-        NEXUS_PASS = 'YOUR_NEXUS_JENKINS_PASSWORD'
+        NEXUS_IP = '44.204.255.105'
+        DEPLOY_IP = '3.91.3.65'
     }
 
     stages {
@@ -18,7 +16,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 git branch: 'main',
-                    url: '',
+                    url: 'https://github.com/Chigich/dev-project.git',
                     credentialsId: 'git-credentials'
             }
         }
@@ -26,7 +24,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
-                    sh 'mvn sonar:sonar -Dsonar.projectKey=demo-app'
+                    sh 'mvn sonar:sonar'
                 }
             }
         }
@@ -55,36 +53,28 @@ pipeline {
                     version: '1.0.0',
                     repository: 'maven-releases',
                     credentialsId: 'nexus-credentials',
-                    artifacts: [[
-                        artifactId: 'demo-app',
-                        classifier: '',
-                        file: 'target/demo-app-1.0.0.jar',
-                        type: 'jar'
-                    ]]
+                    artifacts: [
+                        [
+                            artifactId: 'demo-app',
+                            classifier: '',
+                            file: 'target/demo-app-1.0.0.jar',
+                            type: 'jar'
+                        ]
+                    ]
                 )
             }
         }
 
-        stage('Deploy to EC2') {
+        stage('Deploy') {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     sh """
-                        ssh -o StrictHostKeyChecking=no ubuntu@${DEPLOY_IP} '
-                            mkdir -p /opt/demo-app
+                    scp -o StrictHostKeyChecking=no target/demo-app-1.0.0.jar ubuntu@${DEPLOY_IP}:/home/ubuntu/
 
-                            curl -u jenkins:${NEXUS_PASS} \
-                                 -o /opt/demo-app/app.jar \
-                                 http://${NEXUS_IP}:8081/repository/maven-releases/com/demo/demo-app/1.0.0/demo-app-1.0.0.jar
-
-                            pkill -f "app.jar" || true
-                            sleep 2
-
-                            nohup java -jar /opt/demo-app/app.jar \
-                                --server.port=9001 \
-                                > /opt/demo-app/app.log 2>&1 &
-
-                            echo "App started!"
-                        '
+                    ssh -o StrictHostKeyChecking=no ubuntu@${DEPLOY_IP} << EOF
+                    pkill -f 'demo-app-1.0.0.jar' || true
+                    nohup java -jar /home/ubuntu/demo-app.jar > app.log 2>&1 &
+                    EOF
                     """
                 }
             }
@@ -93,13 +83,11 @@ pipeline {
 
     post {
         success {
-            echo "Deployed! Visit: http://${DEPLOY_IP}:9001"
+            echo 'Pipeline executed successfully!'
         }
+
         failure {
-            echo "Pipeline failed. Check logs above."
-        }
-        always {
-            cleanWs()
+            echo 'Pipeline failed!'
         }
     }
 }

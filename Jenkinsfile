@@ -1,18 +1,16 @@
 pipeline {
     agent any
-
     tools {
         maven 'Maven-3.9'
         jdk 'JDK21'
     }
-
     environment {
         NEXUS_IP = '13.49.138.137'
         DEPLOY_IP = '56.228.29.94'
+        JAVA_HOME = '/usr/lib/jvm/java-21-openjdk-amd64'
+        PATH = "${JAVA_HOME}/bin:${PATH}"
     }
-
     stages {
-
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -20,7 +18,6 @@ pipeline {
                     credentialsId: 'git-credentials'
             }
         }
-
         stage('SonarQube Analysis') {
             steps {
                 withSonarQubeEnv('SonarQube') {
@@ -28,7 +25,6 @@ pipeline {
                 }
             }
         }
-
         stage('Quality Gate') {
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
@@ -36,13 +32,12 @@ pipeline {
                 }
             }
         }
-
         stage('Build') {
             steps {
+                sh 'java -version'
                 sh 'mvn clean package -DskipTests'
             }
         }
-
         stage('Push to Nexus') {
             steps {
                 nexusArtifactUploader(
@@ -64,13 +59,11 @@ pipeline {
                 )
             }
         }
-
         stage('Deploy') {
             steps {
                 sshagent(['ec2-ssh-key']) {
                     sh """
                         scp -o StrictHostKeyChecking=no target/demo-app-1.0.0.jar ubuntu@${DEPLOY_IP}:/home/ubuntu/
-
                         ssh -o StrictHostKeyChecking=no ubuntu@${DEPLOY_IP} "bash -s" << 'ENDSSH'
                             pkill -f demo-app-1.0.0.jar || true
                             sleep 2
@@ -82,7 +75,6 @@ ENDSSH
             }
         }
     }
-
     post {
         success {
             echo 'Pipeline executed successfully!'
@@ -92,4 +84,3 @@ ENDSSH
         }
     }
 }
-

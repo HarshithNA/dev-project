@@ -7,8 +7,7 @@ pipeline {
     environment {
         NEXUS_IP = '13.49.138.137'
         DEPLOY_IP = '56.228.29.94'
-        JAVA_HOME = '/usr/lib/jvm/java-21-openjdk-amd64'
-        PATH = "${JAVA_HOME}/bin:${PATH}"
+        // Remove JAVA_HOME and PATH from here
     }
     stages {
         stage('Checkout') {
@@ -35,6 +34,7 @@ pipeline {
         stage('Build') {
             steps {
                 sh 'java -version'
+                sh 'mvn -version'
                 sh 'mvn clean package -DskipTests'
             }
         }
